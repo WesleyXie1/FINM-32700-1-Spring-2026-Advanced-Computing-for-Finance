@@ -1,0 +1,81 @@
+# High-Performance Linear Algebra Kernels Report
+
+## 1. Introduction
+
+The objective of this project was to implement and optimize fundamental linear algebra kernels in C++, with a focus on performance considerations such as cache locality, compiler optimizations, and memory access patterns. By implementing baseline versions of matrix vector multiplication and matrix matrix multiplication, benchmarked them on multiple matrix sizes, and then studied optimizations including transposing matrix B and blocked matrix multiplication. :contentReference[oaicite:1]{index=1}
+
+## 2. Baseline Implementations
+
+Here implemented the following baseline kernels using raw pointers and dynamically allocated memory:
+
+- Matrix-vector multiplication (row-major)
+- Matrix-vector multiplication (column-major)
+- Matrix-matrix multiplication (naive)
+- Matrix-matrix multiplication with transposed B
+
+Each implementation included basic error handling for invalid pointers and incompatible dimensions. Small test cases to verify correctness before running benchmarks. :contentReference[oaicite:2]{index=2}
+
+## 3. Benchmarking Methodology
+
+Here is a built benchmarking framework using `std::chrono` to measure execution time in microseconds. For each kernel, we tested multiple input sizes and repeated each experiment multiple times. Then computed the average runtime and standard deviation.
+
+The tested matrix sizes included:
+- Matrix-vector: 256×256, 1024×1024, 2048×2048
+- Matrix-matrix: 128×128, 256×256, 384×384
+
+For blocked matrix multiplication, additionally testing multiple block sizes for the 256×256 case in order to study the effect of tuning.
+
+## 4. Benchmark Results
+
+### 4.1 Matrix-Vector Multiplication
+
+Our results showed that the row-major and column-major matrix-vector implementations had similar performance overall. The column-major version was slightly faster for the larger tested sizes, but the gap remained modest.
+
+Example observation:
+- Both implementations benefited from relatively good spatial locality because each one traversed the matrix according to its own storage layout.
+- The performance difference was much smaller than the difference observed in matrix-matrix multiplication.
+
+### 4.2 Matrix-Matrix Multiplication
+
+The matrix-matrix benchmarks showed a much stronger effect of memory layout and optimization.
+
+For example:
+- At 128×128, both transposed-B and blocked multiplication outperformed naive multiplication.
+- At 256×256, transposed-B achieved about a 2.14× speedup over naive, while the best blocked version achieved about a 2.13× speedup.
+- At 384×384, transposed-B remained the fastest, while blocked multiplication still clearly outperformed naive multiplication.
+
+These results indicate that improving memory access patterns is critical for matrix-matrix performance.
+
+## 5. Cache Locality Analysis
+
+### 5.1 Matrix-Vector Multiplication
+
+In the row-major implementation, elements in a row were accessed sequentially using `matrix[i * cols + j]`
+
+In the column-major implementation, the data layout was matched to the traversal order `matrix[j * rows + i]`
+
+Because both kernels followed their native storage order, both achieved good spatial locality. This explains why their benchmark results were relatively close.
+
+### 5.2 Matrix-Matrix Multiplication
+
+The naive matrix-matrix multiplication suffered from poor cache locality because it accessed matrix B in a strided pattern `matrixB[k * colsB + j]`
+
+This effectively reads down a column of a row-major matrix, which is not contiguous in memory. In contrast, the transposed-B implementation accessed `matrixB_transposed[j * rowsB + k]`
+
+This converted the access pattern into sequential reads, improving cache utilization and reducing cache misses.
+
+## 6. Optimization Strategy
+
+We implemented blocked (tiled) matrix multiplication as our main optimization strategy. Instead of multiplying the full matrices at once, the blocked algorithm operates on smaller submatrices. This improves temporal locality because once a block of data is loaded into cache, it can be reused several times before eviction.
+
+For the 256×256 experiment, we tested block sizes 16, 32, and 64. Among these, block size 64 produced the best blocked performance, although the difference between 32 and 64 was relatively small. This suggests that block-size tuning matters, and the best setting depends on hardware and cache characteristics.
+
+## 7. Discussion
+
+Txperiments confirm that memory access pattern is one of the most important factors in high-performance numerical computing. The naive matri matrix implementation was consistently the slowest because of inefficient access to matrix B. Both transposed B and blocked multiplication improved performance substantially by making data access more cache-friendly.
+
+The best optimization can depend on problem size. At smaller sizes, blocked multiplication performed very well, while at larger sizes the transposed-B implementation was slightly faster in our measurements. This suggests that there is no single universally optimal approach, and tuning can be necessary.
+
+## 8. Conclusion
+
+In this project, implemented and benchmarked several linear algebra kernels in C++. The results showed that correctness alone is not sufficient for high performance. Data layout, cache locality, and algorithmic organization have a major effect on runtime. Among optimizations, transposing matrix B and using blocked matrix multiplication both significantly improved performance compared with the naive baseline. Overall, this project demonstrated how low-level implementation details strongly influence the performance of numerical algorithms. :contentReference[oaicite:3]{index=3}
